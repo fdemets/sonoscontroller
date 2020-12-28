@@ -199,8 +199,14 @@ def volume_down(device):
         device.volume = current_volume-2
         log.info("VOLUME DOWN - " + device.player_name + ": " + str(current_volume) + " -> " + str(current_volume -1))
 
-def stop_all(devices):
+def stop(*devices):
     log.info("STOP all")
+    for device in devices:
+        try:
+            device.volume = 8
+        except:
+            log.error("Can't set volume. ")
+
     coord = (x for x in devices if x.is_coordinator)
     for device in coord:
         device.stop()
@@ -249,15 +255,13 @@ def main_loop():
     move = soco.discovery.by_name("Sonos Move")
     log.info("Got sonos instances.")
     get_player_statuses(kitchen, diningroom, move)
-    last_command_sent = "" # we need to check if we've already sent the command - loop will otherwise send dozens
+    last_command_sent = ""
 
     encoder = EncoderWorker(SwitchEncoder(ENCODER_PIN_A, ENCODER_PIN_B, ENCODER_PIN_SW))
     encoder.start()
 
     encoder2 = EncoderWorker(SwitchEncoder(ENCODER2_PIN_A, ENCODER2_PIN_B, ENCODER2_PIN_SW))
     encoder2.start()
-
-    
     
     value = 0
     lagger = 0
@@ -267,20 +271,20 @@ def main_loop():
             delta = encoder.get_delta()
             if delta!=0:
                 value = value + delta
-                print ("value", value)
+                #print ("value", value)
                 if delta > 0:
                     volume_up(diningroom)
                 else:
                     volume_down(diningroom)
 
             if encoder.get_upEvent():  #button pressed - only one needed to execute command
-                print ("up!")
+                #print ("up!")
                 next_song(diningroom)
             
             delta2 = encoder2.get_delta()
             if delta2!=0:
                 value = value + delta2
-                print ("value", value)
+                #print ("value", value)
                 if delta2 > 0:
                     volume_up(kitchen)
                 else:
@@ -297,13 +301,15 @@ def main_loop():
             if IO.input(SWITCH1) == IO.HIGH:  # play something (eg. MNM)
                 print("Button pressed")
                 if  last_command_sent != "MNM":
-                    print("Switched to MNM")
+                    log.info("Switched to MNM")
                     last_command_sent = "MNM"
             
-            if IO.input(OFFSWITCH) == IO.HIGH:  # switch everything off
+            if IO.input(OFFSWITCH) == IO.HIGH:  # play something (eg. MNM)
                 print("OFF pressed")
                 if  last_command_sent != "OFF":
-                    print("Switched OFF")
+                    log.info("Switched OFF")
+                    # put volume back to 10 and shut off all sonos players
+                    stop(kitchen,diningroom,move)
                     last_command_sent = "OFF"
 
             lagger+=1
@@ -312,16 +318,16 @@ def main_loop():
                 kitchen = soco.discovery.by_name("Kitchen")
                 diningroom = soco.discovery.by_name("Dining Room")
                 move = soco.discovery.by_name("Sonos Move")
-                log.info("Refreshed")
+                log.info("Refreshed sonos devices.")
                 get_player_statuses(kitchen, diningroom, move)
                 lagger = 0
             sleep(0.1)
                  
             
     except KeyboardInterrupt:
-        logging.info("Stopping...")
+        log.info("Stopping...")
     except NameError:
-        logging.info("Stopping...")
+        log.info("Stopping...")
     except:
         log.error("Generic error in main loop - " + str(vars(sys.exc_info()[0])))
     finally:
